@@ -1,114 +1,166 @@
 # Aygaz-Goruntu-Isleme
 
-Bölüm 1: Gerekli Kütüphanelerin ve Veri Setinin Hazırlanması
-Neler Yaptık:
-Kütüphanelerin yüklenmesi:
+# Kaggle verisini Google Colab'e bağlama
+!pip install kagglehub
+import kagglehub
 
-tensorflow, keras, cv2, matplotlib, sklearn gibi kütüphaneleri kullandık.
-kagglehub kullanarak, Kaggle üzerindeki bir veri setini indirdik.
-Veri setinin yolu:
+# Veri setini indirme
+rrebirrth_animals_with_attributes_2_path = kagglehub.dataset_download('rrebirrth/animals-with-attributes-2')
+print('Veri seti indirildi ve bağlandı.')
 
-Kaggle veri setini Google Colab'e bağladık ve kullanılacak dosya dizinlerini ayarladık.
-Amaç:
-Bu bölümde kullanılan araçlar ve veri seti ayarları ile proje altyapısını kurduk. Veri setini indirerek, hayvan resimlerine erişim sağladık.
+# Gerekli diğer kütüphaneler
+try:
+    from tqdm.notebook import tqdm
+except ImportError:
+    !pip install tqdm
+    from tqdm.notebook import tqdm
 
-Bölüm 2: Veri Seti Hazırlığı
-Neler Yaptık:
-Hayvan sınıflarının tanımlanması:
+import os
+import numpy as np
+import pandas as pd
+import cv2
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-Kullanılacak hayvan türlerini (collie, dolphin, elephant, vb.) listeledik.
-Resimlerin hazırlanması:
 
-Her hayvan sınıfından en fazla 650 resim seçtik.
-Resimler, 128x128 boyutlarına yeniden boyutlandırıldı.
-Piksel değerleri normalize edildi (0-255 aralığından 0-1 aralığına çekildi).
-Eğitim ve test verilerinin oluşturulması:
+# Veri setinin dizini
+base_path = "/root/.cache/kagglehub/datasets/rrebirrth/animals-with-attributes-2/versions/1/Animals_with_Attributes2/JPEGImages/"
 
-Verileri %70 eğitim ve %30 test olacak şekilde bölüp sınıfları kategorik hale getirdik (to_categorical).
-Amaç:
-Bu bölümde veri setini modele uygun formata dönüştürdük, böylece model hem verimli bir şekilde öğrenebilir hem de doğruluk test edilebilir hale geldi.
+# Kullanılacak hayvan sınıfları
+animals = ["collie", "dolphin", "elephant", "fox", "moose", "rabbit", "sheep", "squirrel", "giant+panda", "polar+bear"]
 
-Bölüm 3: Veri Artırma (Augmentation)
-Neler Yaptık:
-ImageDataGenerator kullandık:
-Görsellerin döndürülmesi, ölçeklenmesi, kaydırılması gibi yöntemlerle eğitim setini zenginleştirdik.
-Bu teknik, modelin öğrenim kapasitesini artırır ve aşırı öğrenmeyi (overfitting) önler.
-Amaç:
-Veri artırma ile modelin daha çeşitli ve genel bir veri üzerinde öğrenmesini sağladık. Bu, gerçek hayatta karşılaşılabilecek varyasyonlarla daha iyi başa çıkmasına olanak tanır.
+# Resim yollarını organize etme
+image_paths = {}
+for dirname, _, filenames in os.walk(base_path):
+    for animal in animals:
+        if animal in dirname:
+            if animal not in image_paths:
+                image_paths[animal] = []
+            for filename in filenames:
+                image_paths[animal].append(os.path.join(dirname, filename))
 
-Bölüm 4: CNN Modelinin Tasarımı
-Neler Yaptık:
-Katmanlar ekledik:
+# Her sınıf için maksimum 650 resim al
+max_images_per_class = 650
+image_data = []
+labels = []
 
-Convolutional Layers (Conv2D): Görsellerin özelliklerini (kenarlar, desenler) çıkartır.
-MaxPooling Layers: Görsellerin boyutunu küçültürken önemli bilgileri korur.
-Flatten Layer: Çok boyutlu çıktıyı tek boyutlu bir forma dönüştürür.
-Dense Layer: Özellikleri sınıflara ayırır.
-Dropout oranını ayarladık:
+for label, animal in enumerate(animals):
+    paths = image_paths[animal][:max_images_per_class]
+    for path in paths:
+        image = cv2.imread(path)
+        image = cv2.resize(image, (128, 128))  # Tüm resimleri 128x128 boyutuna yeniden boyutlandır
+        image_data.append(image / 255.0)  # Normalize et
+        labels.append(label)
 
-Aşırı öğrenmeyi azaltmak için Dropout oranını %30 olarak belirledik.
-Modeli derledik:
+image_data = np.array(image_data)
+labels = np.array(labels)
 
-adam optimizasyon algoritmasını kullandık.
-Kayıp fonksiyonu olarak categorical_crossentropy kullandık.
-Amaç:
-Bu bölümde, hayvan resimlerini doğru şekilde sınıflandırabilecek bir derin öğrenme modeli tasarladık.
+# Eğitim ve test verilerine bölme
+X_train, X_test, y_train, y_test = train_test_split(image_data, labels, test_size=0.3, random_state=42)
+y_train = to_categorical(y_train, num_classes=len(animals))
+y_test = to_categorical(y_test, num_classes=len(animals))
 
-Bölüm 5: Modelin Eğitilmesi
-Neler Yaptık:
-Eğitim işlemi:
+print("Veri seti hazırlandı.")
 
-fit fonksiyonuyla modeli eğitim verileri üzerinde eğittik.
-Veri artırmayı eğitim sırasında kullandık.
-Doğrulama işlemi:
 
-Modeli test verileriyle doğrulayarak, eğitim sırasında performansını ölçtük.
-Amaç:
-Bu adımda modelimiz hayvan türlerini öğrenmeye başladı ve doğrulama verileriyle performansı test edildi.
 
-Bölüm 6: Modelin Test Edilmesi
-Neler Yaptık:
-Modelin test setindeki performansı:
+data_generator = ImageDataGenerator(
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    shear_range=0.2,
+    zoom_range=0.2,
+    horizontal_flip=True
+)
+data_generator.fit(X_train)
 
-evaluate fonksiyonunu kullanarak modelin test doğruluğunu ölçtük.
-Test doğruluğunu değerlendirme:
 
-Eğer doğruluk oranı düşükse, modelin parametrelerini veya yapısını değiştirme gerekliliğini belirttik.
-Amaç:
-Bu bölümde, modelin eğitilmemiş veri üzerindeki başarısını kontrol ettik.
 
-Bölüm 7: Resim Manipülasyonu
-Neler Yaptık:
-Manipülasyon uyguladık:
-Test setindeki resimlerin parlaklıklarını artırdık (convertScaleAbs).
-Modelin manipüle edilmiş resimler üzerindeki başarısını değerlendirdik.
-Amaç:
-Modelin, gerçek dünyada karşılaşılabilecek manipüle edilmiş resimlere olan dayanıklılığını ölçtük.
 
-Bölüm 8: Renk Sabitliği Algoritması
-Neler Yaptık:
-Gray World algoritması:
 
-Görsellerdeki renk kanallarını eşitleyerek, her kanalın ortalamasını diğer kanallarla uyumlu hale getirdik.
-Değerlendirme:
 
-Manipüle edilmiş resimler üzerinde renk sabitliği algoritmasını uyguladık ve modeli tekrar test ettik.
-Amaç:
-Görsellerin renk farklılıklarının sınıflandırmaya olan etkisini inceledik ve modelin daha tutarlı sonuçlar vermesini sağladık.
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
+    MaxPooling2D((2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Conv2D(128, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Conv2D(256, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(256, activation='relu'),
+    Dropout(0.3),
+    Dense(len(animals), activation='softmax')
+])
 
-Bölüm 9: Sonuçların Karşılaştırılması
-Neler Yaptık:
-Doğruluk karşılaştırması:
-Üç farklı senaryoda (Orijinal, Manipüle Edilmiş, Renk Sabitliği) model doğruluk oranlarını ölçtük.
-Sonuçları bir bar grafiği ile görselleştirdik.
-Amaç:
-Modelin farklı test setleri üzerindeki performansını karşılaştırarak, hangi yöntemlerin daha etkili olduğunu gözlemledik.
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-Genel Sonuç
-Bu projede:
 
-Bir veri seti hazırlayıp derin öğrenme modeline uygun hale getirdik.
-CNN mimarisiyle bir sınıflandırma modeli tasarladık ve eğittik.
-Manipülasyon ve renk sabitliği algoritmalarıyla model dayanıklılığını test ettik.
-Sonuçları görselleştirerek modelin genel başarısını değerlendirdik.
-Bu adımları geliştirerek doğruluğu daha da artırabilirsiniz (ör. katman sayısını artırma, hiperparametre optimizasyonu, farklı veri artırma teknikleri vb.).
+
+
+
+
+
+
+
+
+
+history = model.fit(
+    data_generator.flow(X_train, y_train, batch_size=32),
+    validation_data=(X_test, y_test),
+    epochs=15
+)
+
+
+
+
+
+
+
+test_loss, test_accuracy = model.evaluate(X_test, y_test)
+print(f"Test Loss: {test_loss}, Test Accuracy: {test_accuracy}")
+
+if test_accuracy < 0.5:
+    print("Model doğruluğu düşük! Parametreleri veya model yapısını değiştirip yeniden deneyiniz.")
+
+
+
+
+def manipulate_images(images):
+    manipulated = []
+    for img in images:
+        bright_img = cv2.convertScaleAbs(img, alpha=1.2, beta=30)  # Parlaklık artırma
+        manipulated.append(bright_img)
+    return np.array(manipulated)
+
+manipulated_test = manipulate_images(X_test)
+
+# Manipüle edilmiş test setini değerlendirme
+manipulated_test_loss, manipulated_test_accuracy = model.evaluate(manipulated_test, y_test)
+
+print(f"Manipüle edilmiş Test Seti: Test Loss: {manipulated_test_loss}, Test Accuracy: {manipulated_test_accuracy}")
+
+
+
+def apply_gray_world(images):
+    result = []
+    for img in images:
+        mean_r = np.mean(img[:, :, 0])
+        mean_g = np.mean(img[:, :, 1])
+        mean_b = np.mean(img[:, :, 2])
+        avg_mean = (mean_r + mean_g + mean_b) / 3
+        img[:, :, 0] = img[:, :, 0] * avg_mean / mean_r
+        img[:, :, 1] = img[:, :, 1] * avg_mean / mean_g
+        img[:, :, 2] = img[:, :, 2] * avg_mean / mean_b
+        result.append(img)
+    return np.array(result)
+
+color_corrected_test = apply_gray_world(manipulated_test)
+color_corrected_test_loss, color_corrected_test_accuracy = model.evaluate(color_corrected_test, y_test)
+
+print(f"Renk Sabitliği Uygulanmış Test Seti: Test Loss: {color_corrected_test_loss}, Test Accuracy: {color_corrected_test_accuracy}")
